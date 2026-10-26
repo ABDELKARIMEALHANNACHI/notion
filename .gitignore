@@ -1,0 +1,10 @@
+*.har
+*.pcap
+*.cookie
+*.session
+*.env
+*.key
+*.pem
+*.log
+traffic-captures/*.json
+traffic-captures/*.txt
