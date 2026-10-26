@@ -1,49 +1,44 @@
-# Active Hypotheses — updated post-research
+# Active Hypotheses — priority re-ranked (Claude brief)
 
-## Verified facts (from public sources)
-- loadCachedPageChunk: {page:{id}, chunkNumber, limit, cursor:{stack:[]}, verticalColumns}
-- loadPageChunk: {pageId, limit, cursor:{stack:[]}, chunkNumber, verticalColumns}
-- syncRecordValues: {requests:[{pointer:{table,id}, version:-1}]}
-- getRecordValues: {requests:[{id, table}]}
-- search / searchPagesWithParent: accept spaceId
-- getPublicPageData: {spaceDomain:"<sub>.notion.site"} → returns spaceId (no auth)
-- getPublicSpaceData: {spaceId} → returns publicHomePage block ID (no auth)
-- notion.site vs www.notion.so: different routing cells
-- UA-less requests get Cloudflare 403
+## 🔴 P1 — Write-path space-scope trust (submitTransaction / saveTransactions)
+- Server accepts `spaceId` field in operations (confirmed: CRDT rejection for missing space_id)
+- Open question: does server validate `spaceId` == token's workspace, or just presence + internal coherence?
+- Test: submitTransaction with B's token targeting A's block, with A's spaceId in the operation.
+- Confirm: block content on A changes after B's transaction.
+- Impact: CRITICAL — cross-tenant write / privesc
+- Duplicate risk: MEDIUM-HIGH (policy explicitly authorizes this test)
+- Status: candidate — TEST FIRST after H1
 
-## H1 — Cross-workspace page read via loadCachedPageChunk
-- Body: A's page.id, B's token_v2 cookie
-- Confirm: block content returned
-- Reject: uniform error
-- Status: candidate (test now)
+## 🟠 P2 — Read-path cross-workspace (loadCachedPageChunkV2 / syncRecordValues)
+- Already testing (H1, H2). Standard BOLA.
+- Impact: CRITICAL
+- Duplicate risk: HIGH
+- Status: candidate — in progress
 
-## H2 — Cross-workspace record read via syncRecordValues
-- Body: pointer {table:"block", id:<A's block>}, version -1, B's cookie
-- Confirm: record returned
-- Reject: null/error
-- Status: candidate
+## 🟠 P3 — Public-page endpoints as recon primitive
+- getPublicPageData: spaceDomain → spaceId (confirmed)
+- getPublicSpaceData: spaceId → publicHomePage block ID (confirmed)
+- Use as chaining step into P1/P2 to harvest IDs
+- Status: candidate — recon only, not a finding alone
 
-## H3 — Cross-workspace user metadata via loadUserContent
-- Body: empty/minimal, B's cookie — does it return A's workspace info?
-- Status: candidate
+## 🟡 P4 — Permission mutation via generic write path
+- Does saveTransactions bypass the share endpoint and let you write `permissions` field?
+- Impact: CRITICAL (direct privesc)
+- Status: parked until P1 confirmed
 
-## H4 — Public page ID resolution abuse
-- getPublicPageData returns spaceId from subdomain.
-- Question: does getPublicPageData accept a pageId directly (not a spaceDomain)?
-- If yes: can we enumerate spaceId from arbitrary pageId?
-- Status: candidate
+## 🟡 P5 — AI endpoint runInferenceTranscript
+- Confirmed: takes `x-notion-space-id` header
+- Untested: does server validate header vs token
+- Impact: HIGH (cross-workspace AI data leak)
+- Duplicate risk: LOW-MEDIUM — newest surface, likely least trodden
+- Status: candidate — secondary target if P1/P2 dead
 
-## H5 — Link-shared page without link
-- Page shared "Anyone with a link"
-- Attacker knows pageId (from URL screenshot, etc.) but not the link token
-- Does www.notion.so/api/v3/loadCachedPageChunk with attacker's token return content?
-- Status: candidate (privesc target)
+## ❌ UNCONFIRMED ENDPOINTS — do not test
+Claude flagged these names as fabricated-sounding, no public source found:
+- syncRecordValuesSpaceInitial
+- updatePageV2
+- estimateInstructionsTokens
+- markInferenceTranscriptSeen
+- undoAgentOperations
 
-## H6 — submitTransaction cross-workspace write
-- Only test AFTER H1 confirms read leakage
-- Status: parked (depends on H1)
-
-## H7 — UA bypass
-- Requests without UA → 403 (Cloudflare)
-- Question: with UA + valid token + foreign spaceId — what happens?
-- Status: lower priority, expected behavior (Cloudflare)
+If you don't see them in your own traffic, they don't exist for us.
