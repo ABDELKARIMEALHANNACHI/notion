@@ -43,3 +43,19 @@ An attacker with a Business/Enterprise workspace can force Notion's backend to s
 Supporting Material/References:
 
     OAST logs showing the redirect following and MCP handshake.
+### Impact
+
+The `POST /api/v3/validateMcpConnection` endpoint accepts a user-supplied MCP server URL and follows HTTP redirects during validation. By supplying a URL that redirects to an attacker-controlled host, I demonstrated that Notion's backend (`User-Agent: Notion-MCP-Client/1.0`) follows the redirect and initiates a full sequence of MCP-related requests to the redirected destination.
+
+The observed request sequence included:
+- MCP server discovery (`/.well-known/mcp.json`)
+- OAuth/authentication metadata discovery (`/.well-known/openid-configuration`, `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`)
+- Protocol initialization and streaming (`HEAD /mcp`, `POST /mcp`, `GET /mcp`)
+
+These requests were captured by my controlled out-of-band listener and are attributable to Notion's infrastructure via the source IP, `User-Agent`, and internal Sentry tracing headers (`sentry-org_id: 324374`).
+
+**The demonstrated impact is server-side request initiation to an attacker-controlled destination through HTTP redirect following, bypassing any validation applied to the original URL.**
+
+I have not established access to internal services, cloud metadata, sensitive credentials, or protected internal data, and I do not claim those impacts. However, the ability to redirect the validator to an arbitrary destination is the core primitive required for SSRF. If the backend does not re-validate redirect destinations against its internal network boundaries, this behavior could allow an attacker to reach internal services that are otherwise unreachable from the public internet.
+
+I am reporting this behavior so that Notion can assess whether redirect destinations are appropriately validated and whether the MCP connection validator enforces the intended restrictions on outbound requests.
